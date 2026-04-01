@@ -1,0 +1,303 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local player = players.LocalPlayer
+
+
+
+local camera = workspace.CurrentCamera
+
+-- 🔧 SETTINGS
+local settings = {
+	FOV = 60,
+	Smoothness = 30,
+}
+
+-- ✅ THIS IS YOUR TOGGLE (NOT INSTANCE)
+local toggle = false
+
+local locking = false
+local currentTarget = nil
+
+-- 🔵 FOV CIRCLE
+local gui = Instance.new("ScreenGui")
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local circle = Instance.new("Frame")
+circle.Parent = gui
+circle.AnchorPoint = Vector2.new(0.5, 0.5)
+circle.Size = UDim2.new(0, settings.FOV * 2, 0, settings.FOV * 2)
+circle.BackgroundTransparency = 1
+
+local stroke = Instance.new("UIStroke", circle)
+stroke.Thickness = 2
+
+local corner = Instance.new("UICorner", circle)
+corner.CornerRadius = UDim.new(1, 0)
+
+-- 🎯 TARGET FUNCTION
+local function getClosestTarget(mousePos)
+	local closest = nil
+	local shortestDistance = settings.FOV
+
+	for _, plr in pairs(players:GetPlayers()) do
+		if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") then
+			local head = plr.Character.Head
+
+			local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+			if onScreen then
+				local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+
+				if distance < shortestDistance then
+					shortestDistance = distance
+					closest = head
+				end
+			end
+		end
+	end
+
+	return closest
+end
+
+-- 🔄 HEARTBEAT LOOP
+runService.Heartbeat:Connect(function(dt)
+	if not toggle then return end
+
+	local mousePos = UIS:GetMouseLocation()
+	local inset = GuiService:GetGuiInset()
+
+	circle.Position = UDim2.new(
+		0,
+		mousePos.X - inset.X,
+		0,
+		mousePos.Y - inset.Y
+	)
+
+	if locking and currentTarget then
+		if not currentTarget.Parent then
+			currentTarget = nil
+			return
+		end
+
+		local camPos = camera.CFrame.Position
+		local targetCF = CFrame.new(camPos, currentTarget.Position)
+
+		local alpha = math.clamp(settings.Smoothness * dt, 0, 1)
+		camera.CFrame = camera.CFrame:Lerp(targetCF, alpha)
+	end
+end)
+
+-- 🖱 INPUT
+UIS.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if not toggle then return end
+
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		local mousePos = UIS:GetMouseLocation()
+		currentTarget = getClosestTarget(mousePos)
+
+		if currentTarget then
+			locking = true
+		end
+	end
+end)
+
+UIS.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		locking = false
+		currentTarget = nil
+	end
+end)
+
+
+
+
+
+
+
+-- current ESP color (used for new highlights)
+local currentEspColor = Color3.fromRGB(0, 0, 0)
+
+-- TABLE MUST BE DECLARED BEFORE THE FUNCTIONS
+local playerHighlights = {}
+
+local function addHighlightToCharacter(character)
+	if not character then return end
+
+	-- Remove any existing highlight first
+	if playerHighlights[character] then
+		playerHighlights[character]:Destroy()
+		playerHighlights[character] = nil
+	end
+
+	local highlight = Instance.new("Highlight")
+	highlight.FillColor = currentEspColor         -- use current color
+	highlight.FillTransparency = 0.4
+	highlight.OutlineColor = currentEspColor
+	highlight.OutlineTransparency = 0
+	highlight.Parent = character
+
+	playerHighlights[character] = highlight
+end
+
+local function removeHighlightFromCharacter(character)
+	local highlight = playerHighlights[character]
+	if highlight then
+		highlight:Destroy()
+		playerHighlights[character] = nil
+	end
+end
+
+local Window = WindUI:CreateWindow({
+	Title = "Death Hub",
+	Icon = "skull",
+	Author = "by Vexor and Ettzy",
+	Folder = "DeathHub",
+
+	Size = UDim2.fromOffset(580, 460),
+	MinSize = Vector2.new(560, 350),
+	MaxSize = Vector2.new(850, 560),
+	Transparent = true,
+	Theme = "Dark",
+	Resizable = true,
+	SideBarWidth = 200,
+	BackgroundImageTransparency = 0.42,
+	HideSearchBar = true,
+	ScrollBarEnabled = false,
+
+	User = {
+		Enabled = true,
+		Anonymous = false,
+		Callback = function() end,
+	},
+})
+
+local Aimbot = Window:Tab({
+	Title = "Aimbot",
+	Icon = "bone",
+	Locked = false,
+})
+
+local Esp = Window:Tab({
+	Title = "Esp",
+	Icon = "person-standing",
+	Locked = false,
+})
+
+local Teleport = Window:Tab({
+	Title = "Teleport",
+	Icon = "lens-convex",
+	Locked = false,
+})
+
+local AimbotToggle = Aimbot:Toggle({
+	Title = "Toggle Aimbot",
+	Desc = "Toggles Aimbot",
+	Icon = "check",
+	Type = "Checkbox",
+	Value = false,
+	Callback = function(state)
+		if state then
+		toggle = true
+		gui.Enabled = true
+		else
+		toggle = false
+		gui.Enabled = false
+		end
+	end
+})
+
+local aimColorpicker = Aimbot:Colorpicker({
+	Title = "Fov Color",
+	Desc = "Color of the Fov",
+	Default = Color3.fromRGB(0, 0, 0),
+	Transparency = 0,
+	Locked = false,
+	Callback = function(color)  -- for WindUI this may be (color) or (color, transparency)
+		stroke.Color = color
+		end
+})
+
+local Slider = Aimbot:Slider({
+    Title = "Fov Size",
+    Desc = "Changes the size of the fov",
+
+    Step = 1,
+    Value = {
+        Min = 20,
+        Max = 120,
+        Default = 70,
+    },
+
+    Callback = function(value)
+        -- update your own settings table
+        settings.FOV = value
+
+        -- resize the circle to match the new FOV
+        circle.Size = UDim2.new(0, value * 2, 0, value * 2)
+    end
+})
+
+
+local EspToggle = Esp:Toggle({
+	Title = "Toggle Esp",
+	Desc = "Toggles Esp",
+	Icon = "check",
+	Type = "Checkbox",
+	Value = false,
+	Callback = function(state)
+		for _, player in Players:GetPlayers() do
+			if player == LocalPlayer then continue end
+
+			if player.Character then
+				if state then
+					addHighlightToCharacter(player.Character)
+				else
+					removeHighlightFromCharacter(player.Character)
+				end
+			end
+		end
+	end
+})
+
+-- COLORPICKER: change ESP color live
+local Colorpicker = Esp:Colorpicker({
+	Title = "Esp Color",
+	Desc = "Color of the Esp",
+	Default = Color3.fromRGB(0, 0, 0),
+	Transparency = 0,
+	Locked = false,
+	Callback = function(color)  -- for WindUI this may be (color) or (color, transparency)
+		currentEspColor = color
+
+		-- Update all existing highlights to new color
+		for character, highlight in pairs(playerHighlights) do
+			if highlight and highlight.Parent then
+				highlight.FillColor = currentEspColor
+				highlight.OutlineColor = currentEspColor
+			end
+		end
+	end
+})
+
+-- Only apply to enemies when they join
+Players.PlayerAdded:Connect(function(player)
+	if player == LocalPlayer then return end
+
+	player.CharacterAdded:Connect(function(character)
+		if EspToggle.Value then
+			addHighlightToCharacter(character)
+		end
+	end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	if player == LocalPlayer then return end
+
+	local character = player.Character
+	if character then
+		removeHighlightFromCharacter(character)
+	end
+end)
